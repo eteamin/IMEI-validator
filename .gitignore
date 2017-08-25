@@ -2,3 +2,4 @@
 .buildozer/
 bin/
 .pyo
+.apk
