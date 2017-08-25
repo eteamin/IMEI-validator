@@ -12,6 +12,7 @@ from kivy.uix.image import Image
 from kivy.uix.screenmanager import Screen, ScreenManager, FadeTransition
 from kivy.network.urlrequest import UrlRequest
 from jnius import autoclass, cast
+import android
 
 s_m = ScreenManager(transition=FadeTransition())
 logo_font = path.abspath(path.join(path.dirname(__file__), 'fonts', 'Pasajero.otf'))
@@ -21,6 +22,7 @@ failed_image = path.abspath(path.join(path.dirname(__file__), 'images', 'failed.
 __author__ = 'Amin Etesamian'
 IMEI = None
 Build = None
+ANDROID_SDK = None
 
 
 class MainScreen(Screen):
@@ -97,6 +99,37 @@ class MainScreen(Screen):
         self.info.text = 'Please Wait ...'
         self.run.text = 'Processing...'
         self.run.background_color = (0.9, 0.0, 0.3, 0.8)
+
+        global Build, ANDROID_SDK
+        Build = autoclass('android.os.Build')
+        ANDROID_SDK = Build.VERSION.SDK_INT
+
+        # Check android version for possible runtime permission
+        if ANDROID_SDK >= 23:
+            android.activity.bind(on_activity_result=self._on_activity_result)
+            JavaString = autoclass('java.lang.String')
+            JavaArray = autoclass('java.util.ArrayList')
+            permissions = JavaArray()
+            permissions.add(JavaString('READ_PHONE_STATE'.encode("utf-8")))
+            PythonActivity = autoclass('org.renpy.android.PythonActivity')
+            currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
+            ActivityCompat = autoclass('android.support.v4.app.ActivityCompat')
+            ActivityCompat.requestPermissions(currentActivity, permissions, 1)
+        else:
+            self.get_device_info()
+
+    def _on_activity_result(self, requestCode, permissions, grantResults):
+        if requestCode == 1 and grantResults:
+            self.get_device_info()
+
+    def get_device_info(self):
+        Service = autoclass('org.kivy.android.PythonActivity')
+        Context = autoclass('android.content.Context')
+        TelephonyManager = Service.getSystemService(Context.TELEPHONY_SERVICE)
+
+        global IMEI
+        IMEI = TelephonyManager.getDeviceId()
+
         UrlRequest(
             url=self.url,
             on_success=self.on_request_success,
@@ -152,15 +185,6 @@ class MainScreen(Screen):
 
 class CommunityApp(App):
     def on_start(self):
-        Service = autoclass('org.kivy.android.PythonActivity')
-        Context = autoclass('android.content.Context')
-        TelephonyManager = Service.getSystemService(Context.TELEPHONY_SERVICE)
-
-        global Build
-        Build = autoclass('android.os.Build')
-
-        global IMEI
-        IMEI = TelephonyManager.getDeviceId()
         s_m.add_widget(MainScreen())
 
     def on_pause(self):
