@@ -12,7 +12,7 @@ from kivy.uix.image import Image
 from kivy.uix.screenmanager import Screen, ScreenManager, FadeTransition
 from kivy.network.urlrequest import UrlRequest
 from jnius import autoclass, cast
-import android
+import android.activity
 
 s_m = ScreenManager(transition=FadeTransition())
 logo_font = path.abspath(path.join(path.dirname(__file__), 'fonts', 'Pasajero.otf'))
@@ -31,7 +31,6 @@ class MainScreen(Screen):
         with self.canvas.before:
             Color(1, 1, 1, 0.1)
             self.rect = Rectangle(size=(Window.width, Window.height), pos=self.pos)
-        self.url = 'http://api.unlockitservice.com/imei/{}'.format(IMEI)
         self.app_name = Label(
             text='IMEI Validator',
             font_name=logo_font,
@@ -102,10 +101,10 @@ class MainScreen(Screen):
 
         global Build, ANDROID_SDK
         Build = autoclass('android.os.Build')
-        ANDROID_SDK = Build.VERSION.SDK_INT
+        ANDROID_SDK = self._android_sdk()
 
         # Check android version for possible runtime permission
-        if ANDROID_SDK >= 23:
+        if ANDROID_SDK > 22:
             android.activity.bind(on_activity_result=self._on_activity_result)
             JavaString = autoclass('java.lang.String')
             JavaArray = autoclass('java.util.ArrayList')
@@ -122,6 +121,9 @@ class MainScreen(Screen):
         if requestCode == 1 and grantResults:
             self.get_device_info()
 
+    def _set_url(self):
+        self.url = 'http://api.unlockitservice.com/imei/{}'.format(IMEI)
+
     def get_device_info(self):
         Service = autoclass('org.kivy.android.PythonActivity')
         Context = autoclass('android.content.Context')
@@ -129,6 +131,7 @@ class MainScreen(Screen):
 
         global IMEI
         IMEI = TelephonyManager.getDeviceId()
+        self._set_url()
 
         UrlRequest(
             url=self.url,
@@ -136,6 +139,13 @@ class MainScreen(Screen):
             on_failure=self.on_request_failure,
             on_error=self.on_request_error
         )
+
+    def _android_sdk(self):
+        for line in open('/system/build.prop'):
+            import re
+            mth = re.search("ro.build.version.sdk=(.*)", line)
+            if mth:
+                return int(mth.group(1))
 
     def on_request_success(self, req, result):
         self.remove_widget(self.run)
