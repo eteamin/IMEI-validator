@@ -12,7 +12,7 @@ from kivy.uix.image import Image
 from kivy.uix.screenmanager import Screen, ScreenManager, FadeTransition
 from kivy.network.urlrequest import UrlRequest
 from jnius import autoclass, cast
-import android.activity
+from android import activity
 
 s_m = ScreenManager(transition=FadeTransition())
 logo_font = path.abspath(path.join(path.dirname(__file__), 'fonts', 'Pasajero.otf'))
@@ -23,6 +23,8 @@ __author__ = 'Amin Etesamian'
 IMEI = None
 Build = None
 ANDROID_SDK = None
+PythonActivity = None
+CurrentActivity = None
 
 
 class MainScreen(Screen):
@@ -103,35 +105,20 @@ class MainScreen(Screen):
         Build = autoclass('android.os.Build')
         ANDROID_SDK = self._android_sdk()
 
-        # Check android version for possible runtime permission
+        # Check android version for possible
         if ANDROID_SDK > 22:
-            android.activity.bind(on_activity_result=self._on_activity_result)
-            JavaString = autoclass('java.lang.String')
-            JavaArray = autoclass('java.util.ArrayList')
-            permissions = JavaArray()
-            permissions.add(JavaString('READ_PHONE_STATE'.encode("utf-8")))
-            PythonActivity = autoclass('org.renpy.android.PythonActivity')
-            currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
-            ActivityCompat = autoclass('android.support.v4.app.ActivityCompat')
-            ActivityCompat.requestPermissions(currentActivity, permissions, 1)
+            Service = autoclass('org.kivy.android.PythonActivity').mActivity
         else:
-            self.get_device_info()
-
-    def _on_activity_result(self, requestCode, permissions, grantResults):
-        if requestCode == 1 and grantResults:
-            self.get_device_info()
-
-    def _set_url(self):
-        self.url = 'http://api.unlockitservice.com/imei/{}'.format(IMEI)
-
-    def get_device_info(self):
-        Service = autoclass('org.kivy.android.PythonActivity')
+            Service = autoclass('org.kivy.android.PythonActivity')
         Context = autoclass('android.content.Context')
         TelephonyManager = Service.getSystemService(Context.TELEPHONY_SERVICE)
 
         global IMEI
         IMEI = TelephonyManager.getDeviceId()
-        self._set_url()
+        self._send_req()
+
+    def _send_req(self):
+        self.url = 'http://api.unlockitservice.com/imei/{}'.format(IMEI)
 
         UrlRequest(
             url=self.url,
@@ -183,14 +170,12 @@ class MainScreen(Screen):
         self.run.background_color = (0, 0.9, 0.3, 0.8)
 
     def contact_us(self, *args):
-        PythonActivity = autoclass('org.renpy.android.PythonActivity')
         Intent = autoclass('android.content.Intent')
         Uri = autoclass('android.net.Uri')
         intent = Intent()
         intent.setAction(Intent.ACTION_VIEW)
         intent.setData(Uri.parse('https://t.me/eteamin'))
-        currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
-        currentActivity.startActivity(intent)
+        CurrentActivity.startActivity(intent)
 
 
 class CommunityApp(App):
@@ -207,8 +192,10 @@ class CommunityApp(App):
         pass
 
     def build(self):
-        activity = autoclass('org.kivy.android.PythonActivity').mActivity
-        activity.removeLoadingScreen()
+        global PythonActivity, CurrentActivity
+        PythonActivity = autoclass('org.kivy.android.PythonActivity').mActivity
+        CurrentActivity = cast('android.app.Activity', PythonActivity)
+        PythonActivity.removeLoadingScreen()
         return s_m
 
 
