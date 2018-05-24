@@ -105,7 +105,7 @@ class MainScreen(Screen):
         Build = autoclass('android.os.Build')
         ANDROID_SDK = self._android_sdk()
 
-        # Check android version for possible
+        # Service Class differs for Android SDK's below and after 22 so:
         if ANDROID_SDK > 22:
             Service = autoclass('org.kivy.android.PythonActivity').mActivity
         else:
